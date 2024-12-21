@@ -1,10 +1,12 @@
 from http.server import BaseHTTPRequestHandler, HTTPServer
 import re
+from .templating import TemplateEngine
 
 
 class WebFramework:
-    def __init__(self):
+    def __init__(self, template_dir='templates'):
         self.routes = {}
+        self.template_engine = TemplateEngine(template_dir)
 
     def route(self, path, methods=['GET']):
         def decorator(handler):
@@ -39,4 +41,6 @@ class WebFramework:
         server_address = ('', port)
         httpd = server_class(server_address, SimpleHTTPRequestHandler)
         httpd.app = self
+
+        print(f'Starting server on http://localhost:{port}')
         httpd.serve_forever()
