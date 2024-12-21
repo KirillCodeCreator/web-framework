@@ -1,18 +1,20 @@
 from http.server import BaseHTTPRequestHandler, HTTPServer
 import re
+import os
+import mimetypes
 from .templating import TemplateEngine
 
-
 class WebFramework:
-    def __init__(self, template_dir='templates'):
+    def __init__(self, template_dir='templates', styles_dir='styles', scripts_dir='scripts'):
         self.routes = {}
         self.template_engine = TemplateEngine(template_dir)
+        self.styles_dir = styles_dir
+        self.scripts_dir = scripts_dir
 
     def route(self, path, methods=['GET']):
         def decorator(handler):
             self.routes[path] = {'handler': handler, 'methods': methods}
             return handler
-
         return decorator
 
     def dispatch(self, path, method):
@@ -25,16 +27,46 @@ class WebFramework:
     def run(self, server_class=HTTPServer, handler_class=BaseHTTPRequestHandler, port=8000):
         class SimpleHTTPRequestHandler(handler_class):
             def do_GET(self):
-                handler = self.server.app.dispatch(self.path, 'GET')
-                if handler:
-                    response = handler()
-                    self.send_response(200)
-                    self.send_header('Content-type', 'text/html')
-                    self.end_headers()
-                    self.wfile.write(response.encode('utf-8'))
+                if self.path.startswith('/styles/'):
+                    self.serve_static_file('styles')
+                elif self.path.startswith('/scripts/'):
+                    self.serve_static_file('scripts')
+                else:
+                    handler = self.server.app.dispatch(self.path, 'GET')
+                    if handler:
+                        response = handler()
+                        self.send_response(200)
+                        self.send_header('Content-type', 'text/html; charset=utf-8')
+                        self.end_headers()
+                        self.wfile.write(response.encode('utf-8'))
+                    else:
+                        self.send_response(404)
+                        self.send_header('Content-type', 'text/html; charset=utf-8')
+                        self.end_headers()
+                        self.wfile.write(b'Not Found')
+
+            def serve_static_file(self, file_type):
+                if file_type == 'styles':
+                    file_path = os.path.join(self.server.app.styles_dir, self.path[len('/styles/'):])
+                elif file_type == 'scripts':
+                    file_path = os.path.join(self.server.app.scripts_dir, self.path[len('/scripts/'):])
                 else:
                     self.send_response(404)
-                    self.send_header('Content-type', 'text/html')
+                    self.send_header('Content-type', 'text/html; charset=utf-8')
+                    self.end_headers()
+                    self.wfile.write(b'Not Found')
+                    return
+
+                if os.path.exists(file_path):
+                    with open(file_path, 'rb') as file:
+                        content = file.read()
+                        self.send_response(200)
+                        self.send_header('Content-type', mimetypes.guess_type(file_path)[0] or 'application/octet-stream')
+                        self.end_headers()
+                        self.wfile.write(content)
+                else:
+                    self.send_response(404)
+                    self.send_header('Content-type', 'text/html; charset=utf-8')
                     self.end_headers()
                     self.wfile.write(b'Not Found')
 
