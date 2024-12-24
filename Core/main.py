@@ -2,6 +2,7 @@ from http.server import BaseHTTPRequestHandler, HTTPServer
 import re
 import os
 import mimetypes
+from urllib.parse import parse_qs
 from .templating import TemplateEngine
 
 class WebFramework:
@@ -44,6 +45,24 @@ class WebFramework:
                         self.send_header('Content-type', 'text/html; charset=utf-8')
                         self.end_headers()
                         self.wfile.write(b'Not Found')
+
+            def do_POST(self):
+                content_length = int(self.headers['Content-Length'])
+                post_data = self.rfile.read(content_length).decode('utf-8')
+                post_data = parse_qs(post_data)
+
+                handler = self.server.app.dispatch(self.path, 'POST')
+                if handler:
+                    response = handler(post_data)
+                    self.send_response(200)
+                    self.send_header('Content-type', 'text/html; charset=utf-8')
+                    self.end_headers()
+                    self.wfile.write(response.encode('utf-8'))
+                else:
+                    self.send_response(404)
+                    self.send_header('Content-type', 'text/html; charset=utf-8')
+                    self.end_headers()
+                    self.wfile.write(b'Not Found')
 
             def serve_static_file(self, file_type):
                 if file_type == 'styles':
